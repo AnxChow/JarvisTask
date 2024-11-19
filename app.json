@@ -9,13 +9,20 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone."
+      },
+      "bundleIdentifier": "com.anonymous.JarvisTasks"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": ["android.permission.RECORD_AUDIO"],
+      "package": "com.anonymous.JarvisTasks"
     },
     "web": {
       "bundler": "metro",
@@ -31,6 +38,15 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow JarvisTasks to access the microphone",
+          "speechRecognitionPermission": "Allow JarvisTasks to access speech recognition",
+          "NSMicrophoneUsageDescription": "This app uses the microphone to record your voice for tasks",
+          "NSSpeechRecognitionUsageDescription": "This app uses speech recognition to convert your voice to text"
         }
       ],
       "expo-sqlite"

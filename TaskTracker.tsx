@@ -11,13 +11,25 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
+  SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
-import * as Speech from "expo-speech";
-import { initDatabase, getTasks, delTask, completeTask } from "./database";
+import Voice, { SpeechResultsEvent } from "@react-native-voice/voice";
+import {
+  uncompleteTask,
+  getTaskById,
+  initDatabase,
+  getTasks,
+  delTask,
+  completeTask,
+} from "./database";
 import { addTask as addTaskToDb } from "./database";
+import Constants from "expo-constants";
+
+const OPENAI_API_KEY = Constants.expoConfig.extra.OPENAI_API_KEY;
+const OPENAI_ORG_ID = Constants.expoConfig.extra.OPENAI_ORG_ID;
 
 type Task = {
   id: string;
@@ -46,23 +58,165 @@ export default function TaskTracker() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [tempText, setTempText] = useState(""); // Store interim results
 
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const startListening = async () => {
-    try {
-      setIsListening(true);
-      const { transcription } = await Speech.recognizeAsync({
-        language: "en-US",
-      });
-      if (transcription) {
-        setNewTask(transcription);
-        setIsModalOpen(true);
+  useEffect(() => {
+    function onSpeechResults(e: SpeechResultsEvent) {
+      console.log("onSpeechResults: ", e);
+      if (e.value && e.value[0]) {
+        setTempText(e.value[0]); // Just store it, don't parse yet
       }
-    } catch (error) {
-      console.error("Failed to start speech recognition", error);
-    } finally {
+    }
+
+    function onSpeechError(e: any) {
+      console.log("onSpeechError: ", e);
       setIsListening(false);
+    }
+
+    // Set up Voice listeners
+    Voice.onSpeechResults = onSpeechResults;
+    Voice.onSpeechError = onSpeechError;
+
+    // Cleanup
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
+
+  const toggleListening = async () => {
+    console.log("Toggle pressed, current state:", isListening);
+    if (!isListening) {
+      try {
+        await Voice.start("en-US");
+        setIsListening(true);
+      } catch (error) {
+        console.error("Error starting:", error);
+        setIsListening(false);
+      }
+    } else {
+      try {
+        await Voice.stop();
+        setIsListening(false);
+        handleSpeechResults(tempText);
+        setTempText("");
+      } catch (error) {
+        console.error("Error stopping:", error);
+      }
+    }
+  };
+  const handleSpeechResults = async (text) => {
+    const task = await parseVoiceText(text);
+    // console.log(task);
+    let title = task.title;
+    let dueDate = task.dueDate;
+    let label = task.label;
+    addVoiceTask(title, dueDate, label);
+  };
+
+  async function parseVoiceText(text: string) {
+    try {
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+            Organization: `${OPENAI_ORG_ID}`, // Add this line
+            // "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a task extraction assistant. Extract task details from the user's input and return a 'tasks' JSON where each task has the following fields: title, dueDate, and label (one of Personal, Work, Urgent). For dueDate, you should return a relative date (e.g. tomorrow, next week, etc) unless the user specifies a specific date (e.g. January 4, 2024), in which case you can give an ISO format.",
+              },
+              {
+                role: "user",
+                content: text,
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("1: " + data);
+      const content = JSON.parse(data.choices[0].message.content);
+      console.log(content.tasks);
+
+      for (const task of content.tasks) {
+        const today = new Date();
+        let dueDate: Date;
+
+        switch (task.dueDate.toLowerCase()) {
+          case "tomorrow":
+            dueDate = new Date(new Date().setDate(today.getDate() + 1));
+            break;
+          case "next week":
+            dueDate = new Date(new Date().setDate(today.getDate() + 7));
+            break;
+          case "today":
+            dueDate = new Date();
+            break;
+          case "next month":
+            dueDate = new Date(new Date().setDate(today.getDate() + 30));
+            break;
+          default:
+            dueDate = new Date();
+        }
+        console.log("calling addtask for:" + task.title);
+        await addVoiceTask(task.title, dueDate, task.label);
+      }
+
+      return;
+
+      // Assuming the response has a structure with `choices` and `message.content`
+      // const result = data.choices[0].message.content;
+      // console.log(result);
+      // return JSON.parse(result); // Parse the JSON content from the model's response
+    } catch (error) {
+      console.error("Error in parseVoiceText:", error);
+      return null;
+    }
+  }
+
+  const addVoiceTask = async (title: string, date: Date, label: string) => {
+    console.log("UI: VOICE Starting add task with:", {
+      title,
+      date,
+      label,
+      complete: false,
+    });
+    if (title.trim() !== "") {
+      try {
+        await addTaskToDb(title, date, label);
+        console.log("added to DB");
+        const task: Task = {
+          id: Date.now().toString(),
+          title: title,
+          dueDate: date,
+          label: label,
+          complete: false,
+        };
+        setTasks((prevTasks) => [...prevTasks, task]);
+        console.log("UI: Updated tasks state for:", title);
+        // setTasks([...tasks, task]);
+        // setNewTask("");
+        // setNewTaskDueDate(new Date());
+        // setNewTaskLabel("");
+        // setIsModalOpen(false);
+      } catch (error) {
+        console.error("Error adding task:", error);
+      }
     }
   };
 
@@ -135,31 +289,32 @@ export default function TaskTracker() {
   };
 
   const handleComplete = async (taskId: string) => {
-    try {
-      await completeTask(taskId); // You'll need to create this function in database.ts
-      setTasks((currentTasks) =>
-        currentTasks.filter((task) => task.id !== taskId)
-      );
-    } catch (error) {
-      console.error("Error completing task:", error);
+    const task = await getTaskById(taskId);
+    if (!task.complete) {
+      try {
+        const updatedTasks = await completeTask(taskId);
+        setTasks(updatedTasks); // Update UI with all tasks, including completed ones
+      } catch (error) {
+        console.error("Error completing task:", error);
+      }
+    } else {
+      try {
+        const updatedTasks = await uncompleteTask(taskId);
+        setTasks(updatedTasks); // Update UI with all tasks, including completed ones
+      } catch (error) {
+        console.error("Error completing task:", error);
+      }
     }
   };
 
-  // const handleAddTask = async (title: string, dueDate: Date, label: string) => {
-  //   try {
-  //     await addTaskToDb(newTask, newTaskDueDate, newTaskLabel);
-  //     const updatedTasks = await getTasks();
-  //     setTasks(updatedTasks);
-  //   } catch (error) {
-  //     console.error("Error adding task:", error);
-  //   }
-  // };
-
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
         <View style={styles.header}>
-          <Text style={styles.title}>Task Tracker</Text>
+          <Text style={styles.title}>Jarvis Tasks</Text>
           <View style={styles.buttonContainer}>
             <TouchableOpacity
               style={styles.addButton}
@@ -169,8 +324,7 @@ export default function TaskTracker() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.voiceButton}
-              onPress={startListening}
-              disabled={isListening}
+              onPress={toggleListening}
             >
               <Ionicons
                 name={isListening ? "mic" : "mic-outline"}
@@ -184,48 +338,61 @@ export default function TaskTracker() {
         <ScrollView
           style={styles.taskList}
           ref={scrollViewRef}
+          contentContainerStyle={styles.taskListContent}
           onContentSizeChange={() =>
             scrollViewRef.current?.scrollToEnd({ animated: true })
           }
         >
           {sortedTasks
-            .filter((task) => !task.complete)
+            // .filter((task) => !task.complete)
             .map((task) => (
               <View key={task.id} style={styles.taskCard}>
-                <Text style={styles.taskTitle}>{task.title}</Text>
-                <Text style={styles.taskDate}>
-                  Due: {task.dueDate.toLocaleDateString()}
-                </Text>
-                {task.label && (
-                  <View
-                    style={[
-                      styles.taskLabel,
-                      {
-                        backgroundColor: labels.find(
-                          (l) => l.name === task.label
-                        )?.color,
-                      },
-                    ]}
+                <View style={styles.taskContent}>
+                  <Text
+                    style={
+                      (styles.taskTitle, task.complete && styles.completedTask)
+                    }
                   >
-                    <Text style={styles.taskLabelText}>{task.label}</Text>
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={styles.delButton}
-                  onPress={() => handleDelete(task.id)}
-                >
-                  <Ionicons name="trash-outline" size={24} color="white" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.completeButton}
-                  onPress={() => handleComplete(task.id)}
-                >
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={24}
-                    color="white"
-                  />
-                </TouchableOpacity>
+                    {task.title}
+                  </Text>
+                  <Text style={styles.taskDate}>
+                    Due: {task.dueDate.toLocaleDateString()}
+                  </Text>
+                  {task.label && (
+                    <View
+                      style={[
+                        styles.taskLabel,
+                        {
+                          backgroundColor: labels.find(
+                            (l) => l.name === task.label
+                          )?.color,
+                        },
+                      ]}
+                    >
+                      <Text style={styles.taskLabelText}>{task.label}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.taskActions}>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.delButton]}
+                    onPress={() => handleDelete(task.id)}
+                  >
+                    <Ionicons name="trash-outline" size={24} color="white" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.completeButton]}
+                    onPress={() => handleComplete(task.id)}
+                  >
+                    <Ionicons
+                      name={
+                        task.complete ? "checkmark-circle" : "ellipse-outline"
+                      }
+                      size={24}
+                      color="white"
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
         </ScrollView>
@@ -236,11 +403,8 @@ export default function TaskTracker() {
           visible={isModalOpen}
           onRequestClose={() => setIsModalOpen(false)}
         >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.modalContainer}
-          >
-            <TouchableWithoutFeedback onPress={dismissKeyboard}>
+          <TouchableWithoutFeedback onPress={dismissKeyboard}>
+            <View style={styles.modalContainer}>
               <View style={styles.modalContent}>
                 <Text style={styles.modalTitle}>Add New Task</Text>
                 <TextInput
@@ -301,18 +465,24 @@ export default function TaskTracker() {
                   <Text style={styles.closeButtonText}>Close</Text>
                 </TouchableOpacity>
               </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
+            </View>
+          </TouchableWithoutFeedback>
         </Modal>
-      </View>
-    </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  safeArea: {
+    flex: 1,
     backgroundColor: "#f0f0f0",
+  },
+  taskListContent: {
+    paddingVertical: 8,
   },
   header: {
     flexDirection: "row",
@@ -320,6 +490,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
   },
   title: {
     fontSize: 24,
@@ -335,12 +507,29 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   delButton: {
-    backgroundColor: "#118111",
+    backgroundColor: "#EF4444",
     padding: 8,
     borderRadius: 8,
   },
+  completedTask: {
+    textDecorationLine: "line-through",
+    color: "#6B7280",
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  taskActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  taskContent: {
+    flex: 1,
+    marginRight: 16,
+  },
   completeButton: {
-    backgroundColor: "#118111",
+    backgroundColor: "#10B981",
     padding: 8,
     borderRadius: 8,
   },
@@ -349,10 +538,17 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
+  voiceButtonActive: {
+    backgroundColor: "#ffffff",
+    padding: 8,
+    borderRadius: 8,
+  },
   taskList: {
     flex: 1,
   },
   taskCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     backgroundColor: "#ffffff",
     padding: 16,
     marginHorizontal: 16,

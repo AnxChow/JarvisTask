@@ -57,6 +57,25 @@ export const delTask = async (taskId: string): Promise<void> => {
   }
 };
 
+export const getTaskById = async (taskId: string): Promise<Task | null> => {
+  try {
+    const tasks = await AsyncStorage.getItem("tasks");
+    const tasksList = tasks ? JSON.parse(tasks) : [];
+
+    // Find specific task and convert its date
+    const task = tasksList.find((task: Task) => task.id === taskId);
+    if (!task) return null;
+
+    return {
+      ...task,
+      dueDate: new Date(task.dueDate),
+    };
+  } catch (error) {
+    console.error("DB: Error getting task:", error);
+    throw error;
+  }
+};
+
 export const completeTask = async (taskId: string): Promise<void> => {
   try {
     const tasks = await AsyncStorage.getItem("tasks");
@@ -70,8 +89,35 @@ export const completeTask = async (taskId: string): Promise<void> => {
     // Save the filtered list back to storage
     await AsyncStorage.setItem("tasks", JSON.stringify(updatedTasks));
     console.log("DB: Task completed successfully");
+    return updatedTasks.map((task: Task) => ({
+      ...task,
+      dueDate: new Date(task.dueDate),
+    }));
   } catch (error) {
     console.error("DB: Error completing task:", error);
+    throw error;
+  }
+};
+
+export const uncompleteTask = async (taskId: string): Promise<void> => {
+  try {
+    const tasks = await AsyncStorage.getItem("tasks");
+    const tasksList = tasks ? JSON.parse(tasks) : [];
+
+    // Find and update the specific task
+    const updatedTasks = tasksList.map((task: Task) =>
+      task.id === taskId ? { ...task, complete: false } : task
+    );
+
+    // Save the filtered list back to storage
+    await AsyncStorage.setItem("tasks", JSON.stringify(updatedTasks));
+    console.log("DB: Task uncompleted successfully");
+    return updatedTasks.map((task: Task) => ({
+      ...task,
+      dueDate: new Date(task.dueDate),
+    }));
+  } catch (error) {
+    console.error("DB: Error uncompleting task:", error);
     throw error;
   }
 };
@@ -80,7 +126,7 @@ export const getTasks = async (): Promise<any[]> => {
   try {
     const tasks = await AsyncStorage.getItem("tasks");
     const tasksList = tasks ? JSON.parse(tasks) : [];
-    return tasksList.map((task) => ({
+    return tasksList.map((task: Task) => ({
       ...task,
       dueDate: new Date(task.dueDate),
     }));
