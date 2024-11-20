@@ -28,8 +28,10 @@ module.exports = ({ config }) => {
           NSMicrophoneUsageDescription:
             "Allow $(PRODUCT_NAME) to access your microphone. Voice recognition is used to convert your speech to text for AI task processing. Recordings are processed by OpenAI and not stored permanently.",
           // Privacy policy: https://ankitachowdhry.com/JarvisTasksPrivacyPolicy/privacy-policy.md
+          NSPhotoLibraryUsageDescription:
+            "This app does not actually use or access your photos.",
         },
-        bundleIdentifier: "com.ankitachow.JarvisTasks",
+        bundleIdentifier: "com.anonymous.JarvisTasks",
       },
       android: {
         adaptiveIcon: {
