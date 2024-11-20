@@ -59,6 +59,8 @@ export default function TaskTracker() {
   const [isListening, setIsListening] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [tempText, setTempText] = useState(""); // Store interim results
+  const [showTodayOnly, setShowTodayOnly] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -115,7 +117,52 @@ export default function TaskTracker() {
     addVoiceTask(title, dueDate, label);
   };
 
+  const toggleShowCompleted = () => {
+    setShowCompleted((prev) => !prev);
+  };
+  const toggleShowToday = () => {
+    setShowTodayOnly((prev) => !prev);
+  };
+
+  const toggleTaskCompletion = (id: string) => {
+    const updatedTasks = tasks.map((task) =>
+      task.id === id ? { ...task, complete: !task.complete } : task
+    );
+    setTasks(updatedTasks);
+    // saveTasks(updatedTasks);
+  };
+
+  const sortedTasks = [...tasks].sort(
+    (a, b) => a.dueDate.getTime() - b.dueDate.getTime()
+  );
+
+  const filteredTasks = sortedTasks.filter((task) => {
+    if (!showCompleted && task.complete) return false;
+    if (showTodayOnly) {
+      // tasks.filter((task) => {
+      const today = new Date();
+      return task.dueDate.toDateString() === today.toDateString();
+    }
+    return true;
+    // ).sort((a, b) => {
+    //   return a.dueDate.getTime() - b.dueDate.getTime();
+  });
+
+  // tasks.filter((task) => {
+  //   if (!showTodayOnly) {
+  //     setShowTodayOnly(true);
+  //     const today = new Date();
+  //     // Convert task.dueDate to Date object if it isn't already
+  //     const dueDate = new Date(task.dueDate);
+  //     return dueDate == today;
+  //   } else {
+  //     setShowTodayOnly(false);
+  //     return true;
+  //   }
+  // });
+
   async function parseVoiceText(text: string) {
+    const today = new Date();
     try {
       const response = await fetch(
         "https://api.openai.com/v1/chat/completions",
@@ -132,8 +179,7 @@ export default function TaskTracker() {
             messages: [
               {
                 role: "system",
-                content:
-                  "You are a task extraction assistant. Extract task details from the user's input and return a 'tasks' JSON where each task has the following fields: title, dueDate, and label (one of Personal, Work, Urgent). For dueDate, you should return a relative date (e.g. tomorrow, next week, etc) unless the user specifies a specific date (e.g. January 4, 2024), in which case you can give an ISO format.",
+                content: `You are a task extraction assistant. Extract task details from the user's input and return a 'tasks' JSON where each task has the following fields: title, dueDate, and label (one of Personal, Work, Urgent). For dueDate, you should return a date in ISO format with the time set to noon. Note that today's date is "${today}", so if the user says "tomorrow" or "next week", ensure you return the correct ISO based on today's date. If the user says something vague like "in a few days", use your best judgement to figure out a due date based on the task.`,
               },
               {
                 role: "user",
@@ -154,27 +200,28 @@ export default function TaskTracker() {
       console.log(content.tasks);
 
       for (const task of content.tasks) {
-        const today = new Date();
-        let dueDate: Date;
+        // const today = new Date();
+        // let dueDate: Date;
 
-        switch (task.dueDate.toLowerCase()) {
-          case "tomorrow":
-            dueDate = new Date(new Date().setDate(today.getDate() + 1));
-            break;
-          case "next week":
-            dueDate = new Date(new Date().setDate(today.getDate() + 7));
-            break;
-          case "today":
-            dueDate = new Date();
-            break;
-          case "next month":
-            dueDate = new Date(new Date().setDate(today.getDate() + 30));
-            break;
-          default:
-            dueDate = new Date();
-        }
+        // switch (task.dueDate.toLowerCase()) {
+        //   case "tomorrow":
+        //     dueDate = new Date(new Date().setDate(today.getDate() + 1));
+        //     break;
+        //   case "next week":
+        //     dueDate = new Date(new Date().setDate(today.getDate() + 7));
+        //     break;
+        //   case "today":
+        //     dueDate = new Date();
+        //     break;
+        //   case "next month":
+        //     dueDate = new Date(new Date().setDate(today.getDate() + 30));
+        //     break;
+        //   default:
+        //     dueDate = new Date();
+        // }
         console.log("calling addtask for:" + task.title);
-        await addVoiceTask(task.title, dueDate, task.label);
+        const taskDueDate = new Date(task.dueDate);
+        await addVoiceTask(task.title, taskDueDate, task.label);
       }
 
       return;
@@ -261,9 +308,9 @@ export default function TaskTracker() {
     }
   };
 
-  const sortedTasks = [...tasks].sort(
-    (a, b) => a.dueDate.getTime() - b.dueDate.getTime()
-  );
+  // const sortedTasks = [...tasks].sort(
+  //   (a, b) => a.dueDate.getTime() - b.dueDate.getTime()
+  // );
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();
@@ -334,6 +381,24 @@ export default function TaskTracker() {
             </TouchableOpacity>
           </View>
         </View>
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[styles.filterButton]}
+            onPress={toggleShowToday}
+          >
+            <Text style={[styles.filterButtonText]}>
+              {showTodayOnly ? "Show All Tasks" : "Show Today's Tasks"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterButton]}
+            onPress={toggleShowCompleted}
+          >
+            <Text style={styles.filterButtonText}>
+              {showCompleted ? "Hide Completed" : "Show Completed"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <ScrollView
           style={styles.taskList}
@@ -343,7 +408,7 @@ export default function TaskTracker() {
             scrollViewRef.current?.scrollToEnd({ animated: true })
           }
         >
-          {sortedTasks
+          {filteredTasks
             // .filter((task) => !task.complete)
             .map((task) => (
               <View key={task.id} style={styles.taskCard}>
@@ -428,7 +493,8 @@ export default function TaskTracker() {
                   <DateTimePicker
                     value={newTaskDueDate}
                     mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    display="default"
+                    // display={Platform.OS === "ios" ? "spinner" : "default"}
                     onChange={(event, selectedDate) => {
                       setShowDatePicker(false);
                       if (selectedDate) {
@@ -474,15 +540,12 @@ export default function TaskTracker() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
     backgroundColor: "#f0f0f0",
   },
-  taskListContent: {
-    paddingVertical: 8,
+  container: {
+    flex: 1,
   },
   header: {
     flexDirection: "row",
@@ -506,33 +569,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 8,
   },
-  delButton: {
-    backgroundColor: "#EF4444",
-    padding: 8,
-    borderRadius: 8,
-  },
-  completedTask: {
-    textDecorationLine: "line-through",
-    color: "#6B7280",
-  },
-  actionButton: {
-    padding: 8,
-    borderRadius: 8,
-    marginLeft: 8,
-  },
-  taskActions: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  taskContent: {
-    flex: 1,
-    marginRight: 16,
-  },
-  completeButton: {
-    backgroundColor: "#10B981",
-    padding: 8,
-    borderRadius: 8,
-  },
   voiceButton: {
     backgroundColor: "#10B981",
     padding: 8,
@@ -543,8 +579,44 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
+  filterContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    // backgroundColor: "#ffffff",
+    // borderBottomWidth: 1,
+    // borderBottomColor: "#e0e0e0",
+  },
+  filterButton: {
+    backgroundColor: "#a0a3a1",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 20,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterButtonActive: {
+    // backgroundColor: "#3B82F6",
+    // width: 150,
+    backgroundColor: "#3B82F6",
+  },
+  filterButtonText: {
+    color: "#374151",
+    fontSize: 12,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  filterButtonTextActive: {
+    color: "#808080",
+  },
   taskList: {
     flex: 1,
+  },
+  taskListContent: {
+    paddingVertical: 8,
   },
   taskCard: {
     flexDirection: "row",
@@ -560,9 +632,17 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  taskContent: {
+    flex: 1,
+    marginRight: 16,
+  },
   taskTitle: {
     fontSize: 18,
     fontWeight: "bold",
+  },
+  completedTask: {
+    textDecorationLine: "line-through",
+    color: "#6B7280",
   },
   taskDate: {
     fontSize: 14,
@@ -580,6 +660,25 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 12,
     fontWeight: "bold",
+  },
+  taskActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  actionButton: {
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  completeButton: {
+    backgroundColor: "#10B981",
+    padding: 8,
+    borderRadius: 8,
+  },
+  delButton: {
+    backgroundColor: "#EF4444",
+    padding: 8,
+    borderRadius: 8,
   },
   modalContainer: {
     flex: 1,
