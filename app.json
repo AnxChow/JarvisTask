@@ -1,5 +1,10 @@
 {
   "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "$process.env.EAS_PROJECT_ID"
+      }
+    },
     "name": "JarvisTasks",
     "slug": "JarvisTasks",
     "version": "1.0.0",

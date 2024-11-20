@@ -5,14 +5,22 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "APP_ENV": "development"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "APP_ENV": "development"
+      }
     },
-    "production": {}
-  },
-  "submit": {
-    "production": {}
+    "production": {
+      "distribution": "store",
+      "env": {
+        "APP_ENV": "production"
+      }
+    }
   }
 }
