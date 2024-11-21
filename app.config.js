@@ -14,7 +14,7 @@ module.exports = ({ config }) => {
       },
       name: "JarvisTasks",
       slug: "JarvisTasks",
-      version: "1.0.3",
+      version: "1.0.4",
       orientation: "portrait",
       icon: "./assets/images/icon.png",
       scheme: "myapp",
@@ -22,7 +22,7 @@ module.exports = ({ config }) => {
       newArchEnabled: true,
       ios: {
         supportsTablet: true,
-        buildNumber: "3", //incrememnt for each build
+        buildNumber: "4", //incrememnt for each build
         infoPlist: {
           NSSpeechRecognitionUsageDescription:
             "Allow $(PRODUCT_NAME) to use speech recognition. Your voice recordings are used to create tasks using AI assistance. Voice data is processed by OpenAI and not stored permanently.",

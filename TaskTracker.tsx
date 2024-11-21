@@ -12,6 +12,7 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   SafeAreaView,
+  LogBox,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -65,47 +66,61 @@ export default function TaskTracker() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    function onSpeechResults(e: SpeechResultsEvent) {
-      console.log("onSpeechResults: ", e);
-      if (e.value && e.value[0]) {
-        setTempText(e.value[0]); // Just store it, don't parse yet
+    async function initVoice() {
+      try {
+        const isAvailable = await Voice.isAvailable();
+        if (!isAvailable) {
+          console.error("Voice recognition not available on this device");
+          return;
+        }
+
+        // await Voice.isAvailable();
+        Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+          console.warn("onSpeechResults: ", e);
+          if (e.value && e.value[0]) {
+            setTempText(e.value[0]);
+          }
+        };
+        Voice.onSpeechError = (e: any) => {
+          console.warn("onSpeechError: ", e);
+          setIsListening(false);
+        };
+      } catch (e) {
+        console.error("Voice recognition not available", e);
       }
     }
 
-    function onSpeechError(e: any) {
-      console.log("onSpeechError: ", e);
-      setIsListening(false);
-    }
+    initVoice();
 
-    // Set up Voice listeners
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechError = onSpeechError;
-
-    // Cleanup
     return () => {
       Voice.destroy().then(Voice.removeAllListeners);
     };
   }, []);
 
   const toggleListening = async () => {
-    console.log("Toggle pressed, current state:", isListening);
-    if (!isListening) {
-      try {
+    console.warn("Toggle pressed, current state:", isListening);
+    try {
+      if (!isListening) {
+        const isAvailable = await Voice.isAvailable();
+        if (!isAvailable) {
+          return;
+        }
+        await Voice.destroy();
+        console.warn("Starting voice recognition...");
         await Voice.start("en-US");
         setIsListening(true);
-      } catch (error) {
-        console.error("Error starting:", error);
-        setIsListening(false);
-      }
-    } else {
-      try {
+      } else {
+        console.warn("Stopping voice recognition...");
         await Voice.stop();
         setIsListening(false);
-        handleSpeechResults(tempText);
-        setTempText("");
-      } catch (error) {
-        console.error("Error stopping:", error);
+        if (tempText) {
+          handleSpeechResults(tempText);
+          setTempText("");
+        }
       }
+    } catch (error) {
+      console.error("Error in voice toggle:", error);
+      setIsListening(false);
     }
   };
   const handleSpeechResults = async (text) => {
@@ -205,25 +220,29 @@ export default function TaskTracker() {
   }
 
   const addVoiceTask = async (title: string, date: Date, label: string) => {
-    console.log("UI: VOICE Starting add task with:", {
-      title,
-      date,
-      label,
-      complete: false,
-    });
+    // console.log("UI: VOICE Starting add task with:", {
+    //   title,
+    //   date,
+    //   label,
+    //   complete: false,
+    // });
     if (title.trim() !== "") {
       try {
-        await addTaskToDb(title, date, label);
-        console.log("added to DB");
+        // const taskId = Date.now().toString(); // Log the ID we're generating
+        const taskId = await addTaskToDb(title, date, label);
+        console.log("Creating new voice task with ID:", taskId);
+        // await addTaskToDb(title, date, label);
+        console.log("added to DB: ");
         const task: Task = {
-          id: Date.now().toString(),
+          id: taskId,
           title: title,
           dueDate: date,
           label: label,
           complete: false,
         };
+        console.log("Voice task created:", task);
         setTasks((prevTasks) => [...prevTasks, task]);
-        console.log("UI: Updated tasks state for:", title);
+        // console.log("UI: Updated tasks state for:", title);
       } catch (error) {
         console.error("Error adding task:", error);
       }
@@ -231,21 +250,25 @@ export default function TaskTracker() {
   };
 
   const addTask = async () => {
-    console.log("UI: Starting add task with:", {
-      newTask,
-      newTaskDueDate,
-      newTaskLabel,
-    });
+    // console.log("UI: Starting add task with:", {
+    //   newTask,
+    //   newTaskDueDate,
+    //   newTaskLabel,
+    // });
     if (newTask.trim() !== "") {
       try {
-        await addTaskToDb(newTask, newTaskDueDate, newTaskLabel);
+        // const taskId = Date.now().toString(); // Log the ID we're generating
+        const taskId = await addTaskToDb(newTask, newTaskDueDate, newTaskLabel);
+        console.log("Creating new task with ID:", taskId);
+        // await addTaskToDb(newTask, newTaskDueDate, newTaskLabel);
         const task: Task = {
-          id: Date.now().toString(),
+          id: taskId,
           title: newTask,
           dueDate: newTaskDueDate,
           label: newTaskLabel,
           complete: false,
         };
+        console.log("Task created:", task);
         setTasks([...tasks, task]);
         setNewTask("");
         setNewTaskDueDate(new Date());
@@ -292,21 +315,30 @@ export default function TaskTracker() {
   };
 
   const handleComplete = async (taskId: string) => {
-    const task = await getTaskById(taskId);
-    if (!task.complete) {
-      try {
-        const updatedTasks = await completeTask(taskId);
-        setTasks(updatedTasks); // Update UI with all tasks, including completed ones
-      } catch (error) {
-        console.error("Error completing task:", error);
+    try {
+      const task = await getTaskById(taskId);
+      console.log("got task: ", task.title);
+      if (!task) {
+        console.error("Task not found");
+        return;
       }
-    } else {
-      try {
-        const updatedTasks = await uncompleteTask(taskId);
-        setTasks(updatedTasks); // Update UI with all tasks, including completed ones
-      } catch (error) {
-        console.error("Error completing task:", error);
+
+      let updatedTasks;
+      if (!task.complete) {
+        updatedTasks = await completeTask(taskId);
+      } else {
+        updatedTasks = await uncompleteTask(taskId);
       }
+
+      if (Array.isArray(updatedTasks)) {
+        setTasks(updatedTasks);
+      } else {
+        // If the DB operations succeeded but didn't return tasks, refresh the task list
+        const refreshedTasks = await getTasks();
+        setTasks(refreshedTasks);
+      }
+    } catch (error) {
+      console.error("Error handling task completion:", error);
     }
   };
 

@@ -20,12 +20,13 @@ export const addTask = async (
   title: string,
   dueDate: Date,
   label: string
-): Promise<void> => {
+): Promise<string> => {
   try {
+    const taskId = Date.now().toString();
     const tasks = await AsyncStorage.getItem("tasks");
     const tasksList = tasks ? JSON.parse(tasks) : [];
     const newTask = {
-      id: Date.now().toString(),
+      id: taskId,
       title,
       dueDate: dueDate.toISOString(),
       label,
@@ -33,7 +34,8 @@ export const addTask = async (
     };
     tasksList.push(newTask);
     await AsyncStorage.setItem("tasks", JSON.stringify(tasksList));
-    console.log("DB: Task added successfully");
+    console.log("DB: Task added successfully with ID: ", taskId);
+    return taskId;
   } catch (error) {
     console.error("DB: Error adding task:", error);
     throw error;
@@ -58,12 +60,14 @@ export const delTask = async (taskId: string): Promise<void> => {
 };
 
 export const getTaskById = async (taskId: string): Promise<Task | null> => {
+  console.log("Attempting to get task with ID:", taskId);
   try {
     const tasks = await AsyncStorage.getItem("tasks");
     const tasksList = tasks ? JSON.parse(tasks) : [];
 
     // Find specific task and convert its date
     const task = tasksList.find((task: Task) => task.id === taskId);
+    console.log("Task with above ID found:", task);
     if (!task) return null;
 
     return {
