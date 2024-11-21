@@ -148,19 +148,6 @@ export default function TaskTracker() {
     //   return a.dueDate.getTime() - b.dueDate.getTime();
   });
 
-  // tasks.filter((task) => {
-  //   if (!showTodayOnly) {
-  //     setShowTodayOnly(true);
-  //     const today = new Date();
-  //     // Convert task.dueDate to Date object if it isn't already
-  //     const dueDate = new Date(task.dueDate);
-  //     return dueDate == today;
-  //   } else {
-  //     setShowTodayOnly(false);
-  //     return true;
-  //   }
-  // });
-
   async function parseVoiceText(text: string) {
     const today = new Date();
     try {
@@ -200,25 +187,6 @@ export default function TaskTracker() {
       console.log(content.tasks);
 
       for (const task of content.tasks) {
-        // const today = new Date();
-        // let dueDate: Date;
-
-        // switch (task.dueDate.toLowerCase()) {
-        //   case "tomorrow":
-        //     dueDate = new Date(new Date().setDate(today.getDate() + 1));
-        //     break;
-        //   case "next week":
-        //     dueDate = new Date(new Date().setDate(today.getDate() + 7));
-        //     break;
-        //   case "today":
-        //     dueDate = new Date();
-        //     break;
-        //   case "next month":
-        //     dueDate = new Date(new Date().setDate(today.getDate() + 30));
-        //     break;
-        //   default:
-        //     dueDate = new Date();
-        // }
         console.log("calling addtask for:" + task.title);
         const taskDueDate = new Date(task.dueDate);
         await addVoiceTask(task.title, taskDueDate, task.label);
@@ -256,11 +224,6 @@ export default function TaskTracker() {
         };
         setTasks((prevTasks) => [...prevTasks, task]);
         console.log("UI: Updated tasks state for:", title);
-        // setTasks([...tasks, task]);
-        // setNewTask("");
-        // setNewTaskDueDate(new Date());
-        // setNewTaskLabel("");
-        // setIsModalOpen(false);
       } catch (error) {
         console.error("Error adding task:", error);
       }
@@ -297,9 +260,6 @@ export default function TaskTracker() {
   const handleDelete = async (taskId: string) => {
     try {
       await delTask(taskId);
-      // Refresh the task list
-      // const updatedTasks = await getTasks();
-      // setTasks(updatedTasks);
       setTasks((currentTasks) =>
         currentTasks.filter((task) => task.id !== taskId)
       );
@@ -307,10 +267,6 @@ export default function TaskTracker() {
       console.error("Error deleting task:", error);
     }
   };
-
-  // const sortedTasks = [...tasks].sort(
-  //   (a, b) => a.dueDate.getTime() - b.dueDate.getTime()
-  // );
 
   const dismissKeyboard = () => {
     Keyboard.dismiss();

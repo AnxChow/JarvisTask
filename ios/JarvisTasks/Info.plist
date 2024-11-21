@@ -19,7 +19,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.0.3</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -33,7 +33,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>3</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -45,8 +45,16 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>This app does not use the camera.</string>
+    <key>NSMediaLibraryUsageDescription</key>
+    <string>This app does not access your media library.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow JarvisTasks to access the microphone</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>This app does not actually use or access your photos.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app does not actually use or access your photos.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Allow JarvisTasks to access speech recognition</string>
     <key>NSUserActivityTypes</key>

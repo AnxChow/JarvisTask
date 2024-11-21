@@ -14,7 +14,7 @@ module.exports = ({ config }) => {
       },
       name: "JarvisTasks",
       slug: "JarvisTasks",
-      version: "1.0.0",
+      version: "1.0.3",
       orientation: "portrait",
       icon: "./assets/images/icon.png",
       scheme: "myapp",
@@ -22,6 +22,7 @@ module.exports = ({ config }) => {
       newArchEnabled: true,
       ios: {
         supportsTablet: true,
+        buildNumber: "3", //incrememnt for each build
         infoPlist: {
           NSSpeechRecognitionUsageDescription:
             "Allow $(PRODUCT_NAME) to use speech recognition. Your voice recordings are used to create tasks using AI assistance. Voice data is processed by OpenAI and not stored permanently.",
@@ -30,6 +31,11 @@ module.exports = ({ config }) => {
           // Privacy policy: https://ankitachowdhry.com/JarvisTasksPrivacyPolicy/privacy-policy.md
           NSPhotoLibraryUsageDescription:
             "This app does not actually use or access your photos.",
+          NSPhotoLibraryAddUsageDescription:
+            "This app does not actually use or access your photos.", // Add this
+          NSCameraUsageDescription: "This app does not use the camera.", // And this
+          NSMediaLibraryUsageDescription:
+            "This app does not access your media library.", // And this
         },
         bundleIdentifier: "com.anonymous.JarvisTasks",
       },
