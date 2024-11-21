@@ -12,7 +12,8 @@ import {
   TouchableWithoutFeedback,
   KeyboardAvoidingView,
   SafeAreaView,
-  LogBox,
+  // LogBox,
+  NativeModules,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -28,6 +29,8 @@ import {
 } from "./database";
 import { addTask as addTaskToDb } from "./database";
 import Constants from "expo-constants";
+
+const { os_log } = NativeModules;
 
 const OPENAI_API_KEY = Constants.expoConfig.extra.OPENAI_API_KEY;
 const OPENAI_ORG_ID = Constants.expoConfig.extra.OPENAI_ORG_ID;
@@ -70,23 +73,23 @@ export default function TaskTracker() {
       try {
         const isAvailable = await Voice.isAvailable();
         if (!isAvailable) {
-          console.error("Voice recognition not available on this device");
+          os_log("Voice recognition not available on this device");
           return;
         }
 
         // await Voice.isAvailable();
         Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-          console.warn("onSpeechResults: ", e);
+          os_log("onSpeechResults: ", e);
           if (e.value && e.value[0]) {
             setTempText(e.value[0]);
           }
         };
         Voice.onSpeechError = (e: any) => {
-          console.warn("onSpeechError: ", e);
+          os_log("onSpeechError: ", e);
           setIsListening(false);
         };
       } catch (e) {
-        console.error("Voice recognition not available", e);
+        os_log("Voice recognition not available", e);
       }
     }
 
@@ -98,7 +101,7 @@ export default function TaskTracker() {
   }, []);
 
   const toggleListening = async () => {
-    console.warn("Toggle pressed, current state:", isListening);
+    os_log("Toggle pressed, current state:", isListening);
     try {
       if (!isListening) {
         const isAvailable = await Voice.isAvailable();
@@ -106,11 +109,11 @@ export default function TaskTracker() {
           return;
         }
         await Voice.destroy();
-        console.warn("Starting voice recognition...");
+        os_log("Starting voice recognition...");
         await Voice.start("en-US");
         setIsListening(true);
       } else {
-        console.warn("Stopping voice recognition...");
+        os_log("Stopping voice recognition...");
         await Voice.stop();
         setIsListening(false);
         if (tempText) {
@@ -119,7 +122,7 @@ export default function TaskTracker() {
         }
       }
     } catch (error) {
-      console.error("Error in voice toggle:", error);
+      os_log("Error in voice toggle:", error);
       setIsListening(false);
     }
   };
@@ -214,7 +217,7 @@ export default function TaskTracker() {
       // console.log(result);
       // return JSON.parse(result); // Parse the JSON content from the model's response
     } catch (error) {
-      console.error("Error in parseVoiceText:", error);
+      os_log("Error in parseVoiceText:", error);
       return null;
     }
   }

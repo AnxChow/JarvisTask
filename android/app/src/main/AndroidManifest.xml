@@ -33,6 +33,7 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="myapp"/>
         <data android:scheme="com.anonymous.JarvisTasks"/>
+        <data android:scheme="exp+jarvistasks"/>
       </intent-filter>
     </activity>
   </application>
